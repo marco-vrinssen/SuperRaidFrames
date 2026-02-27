@@ -1,6 +1,6 @@
 -- Apply gradient depth overlay on raid healthbars and clean arena frame accessories
 
--- Create vertical gradient colors for healthbar depth effect
+-- Define vertical gradient colors for healthbar depth effect
 
 local GRADIENT_ALPHA = 0.25
 local TOP_COLOR = CreateColor(0, 0, 0, GRADIENT_ALPHA)
@@ -19,12 +19,10 @@ local function ApplyHealthBarGradient(frame)
     healthBar.cleanGradient = gradient
 end
 
--- Hook frame setup functions to apply gradient to all raid and arena frames
+-- Hook frame setup to apply gradient to all raid and arena frames
 
 hooksecurefunc("DefaultCompactUnitFrameSetup", ApplyHealthBarGradient)
 hooksecurefunc("DefaultCompactMiniFrameSetup", ApplyHealthBarGradient)
-
--- Configure arena frame accessories positioning and visibility
 
 local ACCESSORY_SIZE = 40
 
@@ -34,12 +32,14 @@ local function AdjustArenaMember(memberFrame)
     if not memberFrame then return end
 
     -- Hide casting bar by setting alpha to transparent
+
     local castingBar = memberFrame.CastingBarFrame
     if castingBar then
         castingBar:SetAlpha(0)
     end
 
-    -- Position CC remover frame to the right of member frame
+    -- Position CC remover to the right of member frame
+
     local ccRemover = memberFrame.CcRemoverFrame
     if ccRemover then
         ccRemover:SetSize(ACCESSORY_SIZE, ACCESSORY_SIZE)
@@ -48,6 +48,7 @@ local function AdjustArenaMember(memberFrame)
     end
 
     -- Position debuff frame to the left of member frame
+
     local debuffFrame = memberFrame.DebuffFrame
     if debuffFrame then
         debuffFrame:SetSize(ACCESSORY_SIZE, ACCESSORY_SIZE)
@@ -55,11 +56,12 @@ local function AdjustArenaMember(memberFrame)
         debuffFrame:SetPoint("TOPRIGHT", memberFrame, "TOPLEFT", -2, 0)
     end
 
-    -- Position diminish tray below and left of member frame
-    local tray = memberFrame.SpellDiminishStatusTray
-    if tray then
-        tray:ClearAllPoints()
-        tray:SetPoint("BOTTOMRIGHT", memberFrame, "BOTTOMLEFT", -2, 0)
+    -- Position diminish tray to the bottom-left of member frame
+
+    local diminishTray = memberFrame.SpellDiminishStatusTray
+    if diminishTray then
+        diminishTray:ClearAllPoints()
+        diminishTray:SetPoint("BOTTOMRIGHT", memberFrame, "BOTTOMLEFT", -2, 0)
     end
 end
 
