@@ -1,7 +1,9 @@
 ## Interface: 120000
 ## Title: Clean Raid Arena
-## Notes: Gradient overlay on raid healthbars, clean arena frame accessories
+## Notes: Gradient healthbars, healer buff glow, clean arena accessories
 ## Author: MIYANKO
-## Version: 1.0.0
+## Version: 1.1.0
 
-CleanRaidArena.lua
+HealthBarGradient.lua
+RaidFrameAuras.lua
+ArenaFrameAdjustments.lua
