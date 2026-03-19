@@ -5,7 +5,16 @@ local iconOverrideByCategory = {
 }
 
 hooksecurefunc(SpellDiminishStatusTrayItemMixin, "SetCategoryInfo", function(self, categoryInfo)
-    local spellId = iconOverrideByCategory[categoryInfo.category]
+    -- categoryInfo.category is a secret C-level value and cannot be used as a table key,
+    -- so use equality comparisons instead of table lookup
+    local spellId
+    if categoryInfo.category == Enum.SpellDiminishCategory.Stun then
+        spellId = 408
+    elseif categoryInfo.category == Enum.SpellDiminishCategory.Disorient then
+        spellId = 2094
+    elseif categoryInfo.category == Enum.SpellDiminishCategory.Incapacitate then
+        spellId = 118
+    end
     if not spellId then return end
 
     local spellTexture = C_Spell.GetSpellTexture(spellId)
