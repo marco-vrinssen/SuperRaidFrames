@@ -4,8 +4,7 @@
 ## Author: MIYANKO
 ## Version: 1.1.0
 
-## Dependencies: Blizzard_ActionBar
-
-ArenaElements.lua
-RaidAuras.lua
-RaidHealthbar.lua
+ArenaFrames.lua
+DiminishIcons.lua
+HealthTexture.lua
+RaidFrames.lua
