@@ -1,5 +1,5 @@
 ## Interface: 120000
-## Title: Clean Raid Arena
+## Title: Clean Raid Arena Frames
 ## Notes: Gradient healthbars, healer buff glow, clean arena elements.
 ## Author: MIYANKO
 ## Version: 1.1.0

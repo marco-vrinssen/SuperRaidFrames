@@ -1,4 +1,4 @@
-# Clean Raid Arena
+# Clean Raid Arena Frames
 
 Minimal WoW addon for cleaner raid and arena unit frames, featuring gradient healthbar overlays, healer buff glow tracking, and streamlined arena frame accessories.
 
