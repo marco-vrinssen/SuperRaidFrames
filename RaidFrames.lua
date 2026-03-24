@@ -1,50 +1,31 @@
--- Manage raid frame auras by increasing buff sizes, highlighting tracked
--- healer buffs with a golden glow border, limiting debuffs to the first
--- one only (enlarged when it is a dispellable CC), and removing cooldown
--- swipe/edge clutter
+-- Resize raid frame auras, glow tracked healer buffs, limit to one debuff, enlarge dispellable CC
 
-
-------------------------------------------------------------------------
--- Configuration
-------------------------------------------------------------------------
-
-local AURA_SIZE_RATIO      = 0.4  -- buff icon size as a fraction of the raid frame height
-local DEBUFF_SIZE_RATIO    = 0.4  -- default debuff icon size ratio (same as buffs)
-local DEBUFF_CC_SIZE_RATIO = 0.7  -- enlarged debuff icon when it is a dispellable CC
-local GLOW_SIZE_RATIO      = 1.4  -- glow frame extends to 140% of the aura icon size
+local BUFF_HEIGHT_RATIO           = 0.4
+local DEBUFF_HEIGHT_RATIO         = 0.4
+local DISPELLABLE_CC_HEIGHT_RATIO = 0.6
+local GLOW_SCALE_FACTOR           = 1.4
 
 local trackedHealerSpellIds = {
-    [194384]  = true,  -- Atonement        (Discipline Priest)
-    [156910]  = true,  -- Beacon of Faith  (Holy Paladin)
-    [1244893] = true,  -- Beacon of Savior (Holy Paladin)
-    [53563]   = true,  -- Beacon of Light  (Holy Paladin)
-    [115175]  = true,  -- Soothing Mist    (Mistweaver Monk)
-    [33763]   = true,  -- Lifebloom        (Restoration Druid)
-    [366155]  = true,  -- Reversion        (Evoker)
-    [383648]  = true,  -- Earth Shield     (Restoration Shaman)
+    [194384]  = true,  -- Atonement
+    [156910]  = true,  -- Beacon of Faith
+    [1244893] = true,  -- Beacon of Savior
+    [53563]   = true,  -- Beacon of Light
+    [115175]  = true,  -- Soothing Mist
+    [33763]   = true,  -- Lifebloom
+    [366155]  = true,  -- Reversion
+    [383648]  = true,  -- Earth Shield
 }
 
--- Filter strings for the 12.0.1 aura filter API.
--- IsAuraFilteredOutByInstanceID returns true when the aura does NOT match
--- the filter (i.e. is excluded). We check with "not" to confirm a match.
+local CC_AURA_FILTER          = "HARMFUL|CROWD_CONTROL"
+local DISPELLABLE_AURA_FILTER = "HARMFUL|RAID_PLAYER_DISPELLABLE"
 
-local CC_FILTER          = "HARMFUL|CROWD_CONTROL"
-local DISPELLABLE_FILTER = "HARMFUL|RAID_PLAYER_DISPELLABLE"
+local healerGlowPool    = {}
+local defensiveGlowPool = {}
 
+-- Create or return cached glow overlay to highlight tracked healer buffs because visual priority matters
 
-------------------------------------------------------------------------
--- Glow frame pool
-------------------------------------------------------------------------
-
--- Pool keyed by buff frame reference.
-local glowPool = {}
-
-
--- Return a cached glow overlay or create one on first use.
--- Uses Blizzard ActionButtonSpellAlertTemplate for the golden glow effect.
-
-local function AcquireGlow(buffFrame)
-    local glow = glowPool[buffFrame]
+local function AcquireHealerGlow(buffFrame)
+    local glow = healerGlowPool[buffFrame]
     if glow then return glow end
 
     C_AddOns.LoadAddOn("Blizzard_ActionBar")
@@ -54,16 +35,14 @@ local function AcquireGlow(buffFrame)
     glow.ProcStartFlipbook:Hide()
     glow:Hide()
 
-    glowPool[buffFrame] = glow
+    healerGlowPool[buffFrame] = glow
     return glow
 end
 
+-- Play steady glow loop to indicate tracked healer buff because the start flash looks bad at small sizes
 
--- Show the steady glow loop, skipping the start flash which looks bad
--- at small icon sizes.
-
-local function ShowGlow(buffFrame)
-    local glow = AcquireGlow(buffFrame)
+local function ShowHealerGlow(buffFrame)
+    local glow = AcquireHealerGlow(buffFrame)
 
     if glow.ProcStartAnim:IsPlaying() then
         glow.ProcStartAnim:Stop()
@@ -76,11 +55,10 @@ local function ShowGlow(buffFrame)
     end
 end
 
+-- Stop healer glow animations to free cycles because hidden buffs should not animate
 
--- Hide the glow and stop all animations to avoid wasting cycles.
-
-local function HideGlow(buffFrame)
-    local glow = glowPool[buffFrame]
+local function HideHealerGlow(buffFrame)
+    local glow = healerGlowPool[buffFrame]
     if not glow then return end
 
     glow.ProcLoop:Stop()
@@ -88,22 +66,69 @@ local function HideGlow(buffFrame)
     glow:Hide()
 end
 
+-- Create or return cached green glow overlay to highlight big defensives because they need visual distinction
 
-------------------------------------------------------------------------
--- Frame styling
-------------------------------------------------------------------------
+local function AcquireDefensiveGlow(buffFrame)
+    local glow = defensiveGlowPool[buffFrame]
+    if glow then return glow end
 
--- Apply icon size, optional glow resize, and cooldown cleanup to a
--- single aura frame.
+    C_AddOns.LoadAddOn("Blizzard_ActionBar")
 
-local function StyleAuraFrame(auraFrame, auraSize, glowSize)
-    auraFrame:SetSize(auraSize, auraSize)
+    glow = CreateFrame("Frame", nil, buffFrame, "ActionButtonSpellAlertTemplate")
+    glow:SetPoint("CENTER", buffFrame, "CENTER", 0, 0)
+    glow.ProcStartFlipbook:Hide()
+    glow.ProcStartFlipbook:SetVertexColor(0, 0.8, 0, 1)
+    glow.ProcLoopFlipbook:SetVertexColor(0, 0.8, 0, 1)
+    glow:Hide()
 
-    local glow = glowPool[auraFrame]
-    if glow then
-        glow:SetSize(glowSize, glowSize)
-        glow:ClearAllPoints()
-        glow:SetPoint("CENTER", auraFrame, "CENTER", 0, 0)
+    defensiveGlowPool[buffFrame] = glow
+    return glow
+end
+
+-- Play green glow loop to indicate active big defensive because defensives need immediate visibility
+
+local function ShowDefensiveGlow(buffFrame)
+    local glow = AcquireDefensiveGlow(buffFrame)
+
+    if glow.ProcStartAnim:IsPlaying() then
+        glow.ProcStartAnim:Stop()
+    end
+
+    glow:Show()
+
+    if not glow.ProcLoop:IsPlaying() then
+        glow.ProcLoop:Play()
+    end
+end
+
+-- Stop defensive glow animations to free cycles because hidden defensives should not animate
+
+local function HideDefensiveGlow(buffFrame)
+    local glow = defensiveGlowPool[buffFrame]
+    if not glow then return end
+
+    glow.ProcLoop:Stop()
+    glow.ProcStartAnim:Stop()
+    glow:Hide()
+end
+
+-- Resize aura frame and sync glow overlays to avoid visual mismatch because icons and glows must stay aligned
+
+local function ScaleAuraFrame(auraFrame, iconSize, glowSize)
+    auraFrame:SetSize(iconSize, iconSize)
+
+    local healerGlow = healerGlowPool[auraFrame]
+    if healerGlow then
+        healerGlow:SetSize(glowSize, glowSize)
+        healerGlow:ClearAllPoints()
+        healerGlow:SetPoint("CENTER", auraFrame, "CENTER", 0, 0)
+    end
+
+    local defensiveGlow = defensiveGlowPool[auraFrame]
+    if defensiveGlow then
+        defensiveGlow:SetSize(glowSize, glowSize)
+        defensiveGlow:ClearAllPoints()
+        defensiveGlow:SetPoint("CENTER", auraFrame, "CENTER", 0, 0)
     end
 
     if auraFrame.cooldown then
@@ -112,20 +137,10 @@ local function StyleAuraFrame(auraFrame, auraSize, glowSize)
     end
 end
 
-
-------------------------------------------------------------------------
--- Aura helpers
-------------------------------------------------------------------------
-
--- Check whether a buff frame carries a tracked healer spell. Aura fields
--- on other players' units can be "secret" (12.0.0+), which causes any
--- attempt to use them as table keys to throw "table index is secret".
--- Even re-querying through C_UnitAuras.GetAuraDataByAuraInstanceID still
--- returns secret values in some cases. We wrap the entire lookup in pcall
--- so a secret spellId is caught and treated as "not tracked".
+-- Check healer buff via pcall to handle secret spellId values in PvP because direct access throws
 
 local function IsTrackedHealerBuff(buffFrame)
-    local ok, result = pcall(function()
+    local succeeded, result = pcall(function()
         local parent = buffFrame:GetParent()
         local unit   = parent and parent.displayedUnit
         local auraId = buffFrame.auraInstanceID
@@ -137,34 +152,23 @@ local function IsTrackedHealerBuff(buffFrame)
         return trackedHealerSpellIds[data.spellId] == true
     end)
 
-    return ok and result
+    return succeeded and result
 end
 
-
--- Check whether the first debuff is a crowd control effect that the
--- current player can dispel, using the 12.0.1 aura filter API.
+-- Check whether debuff is a dispellable CC to decide enlargement because CC needs visual priority
 
 local function IsDispellableCC(unitFrame, debuffFrame)
     local unit   = unitFrame and unitFrame.displayedUnit
     local auraId = debuffFrame and debuffFrame.auraInstanceID
     if not unit or not auraId then return false end
 
-    local isCC = not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, auraId, CC_FILTER)
+    local isCC = not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, auraId, CC_AURA_FILTER)
     if not isCC then return false end
 
-    local isDispellable = not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, auraId, DISPELLABLE_FILTER)
-    return isDispellable
+    return not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, auraId, DISPELLABLE_AURA_FILTER)
 end
 
-
-------------------------------------------------------------------------
--- Hooks
-------------------------------------------------------------------------
-
--- Hook into CompactUnitFrame_UtilSetBuff to immediately tag and glow buff
--- frames that carry a tracked healer spell. Applying the glow here instead
--- of in the UpdateAuras hook removes the ~500ms delay because UtilSetBuff
--- fires the instant Blizzard assigns aura data to the frame.
+-- Tag and glow healer buffs immediately to avoid delay because UtilSetBuff fires before UpdateAuras
 
 hooksecurefunc("CompactUnitFrame_UtilSetBuff", function(buffFrame, aura)
     if not buffFrame or not aura then return end
@@ -173,15 +177,13 @@ hooksecurefunc("CompactUnitFrame_UtilSetBuff", function(buffFrame, aura)
     buffFrame.isTrackedHealerAura = isTracked
 
     if isTracked then
-        ShowGlow(buffFrame)
+        ShowHealerGlow(buffFrame)
     else
-        HideGlow(buffFrame)
+        HideHealerGlow(buffFrame)
     end
 end)
 
-
--- Hook into CompactUnitFrame_UtilSetDebuff to store the parent unit frame
--- reference so we can resolve the unit token for filter checks later.
+-- Store parent unit frame on debuff to resolve unit token for filter checks later
 
 hooksecurefunc("CompactUnitFrame_UtilSetDebuff", function(unitFrame, debuffFrame, aura)
     if not debuffFrame or not aura then return end
@@ -189,11 +191,7 @@ hooksecurefunc("CompactUnitFrame_UtilSetDebuff", function(unitFrame, debuffFrame
     debuffFrame.parentUnitFrame = unitFrame
 end)
 
-
--- Main post-hook on CompactUnitFrame_UpdateAuras. Handles sizing for all
--- aura frames and debuff visibility. Glow state for buffs is already
--- resolved in the UtilSetBuff hook above, so this pass only needs to
--- handle sizing, cleanup for hidden frames, and debuff logic.
+-- Resize all aura frames and manage debuff visibility because Blizzard defaults need overriding
 
 hooksecurefunc("CompactUnitFrame_UpdateAuras", function(unitFrame)
     if not unitFrame then return end
@@ -201,38 +199,66 @@ hooksecurefunc("CompactUnitFrame_UpdateAuras", function(unitFrame)
     local frameHeight = unitFrame:GetHeight()
     if not frameHeight or frameHeight <= 0 then return end
 
-    local buffSize = math.floor(frameHeight * AURA_SIZE_RATIO)
-    local glowSize = math.floor(buffSize   * GLOW_SIZE_RATIO)
+    local buffSize     = math.floor(frameHeight * BUFF_HEIGHT_RATIO)
+    local glowSize     = math.floor(buffSize * GLOW_SCALE_FACTOR)
+    local auraGap      = 1
+    local auraOffset   = 3
+    local bottomOffset = 2 + (unitFrame.powerBarUsedHeight or 0)
 
-    -- Buffs: resize all visible buffs and clean up glows on hidden frames.
-    -- Glow show/hide is already handled in the UtilSetBuff hook, but we
-    -- still need to hide glows on frames that Blizzard hid after the buff
-    -- iteration (e.g. when a buff expires and the frame is recycled).
+    -- Reposition buffs in a bottom-right grid to compensate for upscaled icon sizes because defaults overlap
 
     if unitFrame.buffFrames then
+        local visibleIndex = 0
+
         for i = 1, #unitFrame.buffFrames do
             local buffFrame = unitFrame.buffFrames[i]
             if not buffFrame then break end
 
             if buffFrame:IsShown() then
-                StyleAuraFrame(buffFrame, buffSize, glowSize)
+                ScaleAuraFrame(buffFrame, buffSize, glowSize)
+
+                local col = visibleIndex % 3
+                local row = math.floor(visibleIndex / 3)
+
+                local xOffset = -auraOffset - (col * (buffSize + auraGap))
+                local yOffset = bottomOffset + (row * (buffSize + auraGap))
+
+                buffFrame:ClearAllPoints()
+                buffFrame:SetPoint("BOTTOMRIGHT", unitFrame, "BOTTOMRIGHT", xOffset, yOffset)
+
+                visibleIndex = visibleIndex + 1
             else
-                HideGlow(buffFrame)
+                HideHealerGlow(buffFrame)
             end
         end
     end
 
-    -- Debuffs: show only the first debuff, hide all others.
-    -- If the first debuff is a CC that the player can dispel, enlarge it
-    -- to the CC size ratio so it stands out during combat.
+    -- Rescale and reposition center defensive buff to top-left because it should match other buff sizing
+
+    if unitFrame.CenterDefensiveBuff then
+        local defensiveBuff = unitFrame.CenterDefensiveBuff
+        if defensiveBuff:IsShown() then
+            ScaleAuraFrame(defensiveBuff, buffSize, glowSize)
+            defensiveBuff:ClearAllPoints()
+            defensiveBuff:SetPoint("TOPLEFT", unitFrame, "TOPLEFT", auraOffset, -auraOffset)
+            ShowDefensiveGlow(defensiveBuff)
+        else
+            HideDefensiveGlow(defensiveBuff)
+        end
+    end
+
+    -- Reposition first debuff to bottom-left and hide extras because only one debuff should be visible
 
     if unitFrame.debuffFrames then
         local first = unitFrame.debuffFrames[1]
         if first and first:IsShown() then
             local isCC       = IsDispellableCC(unitFrame, first)
-            local ratio      = isCC and DEBUFF_CC_SIZE_RATIO or DEBUFF_SIZE_RATIO
+            local ratio      = isCC and DISPELLABLE_CC_HEIGHT_RATIO or DEBUFF_HEIGHT_RATIO
             local debuffSize = math.floor(frameHeight * ratio)
-            StyleAuraFrame(first, debuffSize, math.floor(debuffSize * GLOW_SIZE_RATIO))
+            ScaleAuraFrame(first, debuffSize, math.floor(debuffSize * GLOW_SCALE_FACTOR))
+
+            first:ClearAllPoints()
+            first:SetPoint("BOTTOMLEFT", unitFrame, "BOTTOMLEFT", auraOffset, bottomOffset)
         end
 
         for i = 2, #unitFrame.debuffFrames do
