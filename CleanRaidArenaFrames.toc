@@ -3,6 +3,7 @@
 ## Notes: Gradient healthbars, healer buff glow, defensive buff glow, clean arena elements.
 ## Author: MIYANKO
 ## Version: 1.2.0
+## IconTexture: 133004
 
 ArenaFrames.lua
 HealthTexture.lua
