@@ -5,6 +5,7 @@
 ## Version: 1.2.0
 ## IconTexture: 133004
 
+AutoRaidLayout.lua
 ArenaFrames.lua
 HealthTexture.lua
 RaidFrames.lua
