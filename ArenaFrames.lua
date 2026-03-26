@@ -2,17 +2,6 @@
 
 local ACCESSORY_HEIGHT_RATIO = 0.6
 
--- Resize active diminish tray items to match accessory scale because pool-created items use default sizes
-local function ResizeDiminishTrayItems(diminishTray, accessorySize)
-    for _, category in ipairs(diminishTray.trayItemOrder) do
-        local trayItem = diminishTray:GetActiveTrayItemForCategory(category)
-        if trayItem then
-            trayItem:SetSize(accessorySize, accessorySize)
-        end
-    end
-    diminishTray:Layout()
-end
-
 -- Reposition and resize all accessories on a member frame to override default Blizzard layout
 local function AdjustMemberAccessories(memberFrame)
     local frameHeight = memberFrame:GetHeight()
@@ -39,12 +28,13 @@ local function AdjustMemberAccessories(memberFrame)
         memberFrame.DebuffFrame:SetPoint("RIGHT", memberFrame, "LEFT", -2, 0)
     end
 
-    -- Anchor diminish tray left of debuff frame to form a clean horizontal row of accessories
+    -- Scale diminish tray to match accessory size without tainting child dimensions that Layout compares
     local diminishTray = memberFrame.SpellDiminishStatusTray
     if diminishTray then
         diminishTray:ClearAllPoints()
         diminishTray:SetPoint("RIGHT", memberFrame.DebuffFrame, "LEFT", -2, 0)
-        ResizeDiminishTrayItems(diminishTray, accessorySize)
+        local defaultSize = diminishTray.minimumWidth or 30
+        diminishTray:SetScale(accessorySize / defaultSize)
     end
 end
 
@@ -60,20 +50,6 @@ local function SetupArenaFrameHooks()
             AdjustMemberAccessories(memberFrame)
         end
     end)
-
-    -- Hook each diminish tray to resize pool-created items after layout changes
-    for _, memberFrame in ipairs(arenaFrame.memberUnitFrames) do
-        local diminishTray = memberFrame.SpellDiminishStatusTray
-        if diminishTray then
-            hooksecurefunc(diminishTray, "RefreshTrayLayout", function(self)
-                local parentMemberFrame = self:GetParent()
-                if not parentMemberFrame then return end
-                local frameHeight = parentMemberFrame:GetHeight()
-                if not frameHeight or frameHeight <= 0 then return end
-                ResizeDiminishTrayItems(self, math.floor(frameHeight * ACCESSORY_HEIGHT_RATIO))
-            end)
-        end
-    end
 
     -- Apply initial adjustments to catch frames that already exist at hook time
     for _, memberFrame in ipairs(arenaFrame.memberUnitFrames) do
