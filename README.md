@@ -1,6 +1,6 @@
-# Clean Raid Arena Frames
+# Super Raid Frames
 
-Minimal WoW addon for cleaner raid and arena unit frames.
+WoW addon for cleaner raid and arena unit frames.
 
 ## Features
 
